@@ -76,6 +76,9 @@ extern const mp_obj_type_t mcu_pin_type;
 #define NO_PIN 0xff
 
 // F4 Series
+#ifdef STM32F401xC
+#include "stm32f4/stm32f401xc/pins.h"
+#endif
 #ifdef STM32F401xE
 #include "stm32f4/stm32f401xe/pins.h"
 #endif

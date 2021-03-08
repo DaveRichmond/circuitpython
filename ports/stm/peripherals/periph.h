@@ -68,6 +68,13 @@ typedef struct {
 // F4 Series
 // Access Lines
 
+#ifdef STM32F401xC
+#define HAS_DAC 0
+#define HAS_TRNG 0
+#define HAS_BASIC_TIM 0
+#include "stm32f4/stm32f401xc/periph.h"
+#endif
+
 #ifdef STM32F401xE
 #define HAS_DAC 0
 #define HAS_TRNG 0

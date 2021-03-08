@@ -29,6 +29,9 @@
 #include <stdbool.h>
 
 // F4 Series
+#ifdef STM32F401xC
+#include "stm32f4/stm32f401xc/clocks.h"
+#endif
 #ifdef STM32F401xE
 #include "stm32f4/stm32f401xe/clocks.h"
 #endif
