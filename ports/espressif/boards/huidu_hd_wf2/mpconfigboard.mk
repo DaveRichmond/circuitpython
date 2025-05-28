@@ -9,7 +9,9 @@ CIRCUITPY_ESP_FLASH_MODE = qio
 CIRCUITPY_ESP_FLASH_FREQ = 80m
 CIRCUITPY_ESP_FLASH_SIZE = 8MB
 
+# disable some probably not useful features to ensure we have a little more ram available
 CIRCUITPY_ESPCAMERA = 0
+CIRCUITPY_AUDIOMP3 = 0
 
 # ensure internal flash is used for circuitpython storage
 INTERNAL_FLASH_FILESYSTEM = 1
