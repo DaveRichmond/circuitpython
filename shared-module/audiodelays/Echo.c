@@ -34,14 +34,14 @@ void common_hal_audiodelays_echo_construct(audiodelays_echo_obj_t *self, uint32_
     // Samples are set sequentially. For stereo audio they are passed L/R/L/R/...
     self->buffer_len = buffer_size; // in bytes
 
-    self->buffer[0] = m_malloc(self->buffer_len);
+    self->buffer[0] = m_malloc_without_collect(self->buffer_len);
     if (self->buffer[0] == NULL) {
         common_hal_audiodelays_echo_deinit(self);
         m_malloc_fail(self->buffer_len);
     }
     memset(self->buffer[0], 0, self->buffer_len);
 
-    self->buffer[1] = m_malloc(self->buffer_len);
+    self->buffer[1] = m_malloc_without_collect(self->buffer_len);
     if (self->buffer[1] == NULL) {
         common_hal_audiodelays_echo_deinit(self);
         m_malloc_fail(self->buffer_len);
@@ -71,7 +71,7 @@ void common_hal_audiodelays_echo_construct(audiodelays_echo_obj_t *self, uint32_
     synthio_block_assign_slot(delay_ms, &self->delay_ms, MP_QSTR_delay_ms);
 
     if (mix == MP_OBJ_NULL) {
-        mix = mp_obj_new_float(MICROPY_FLOAT_CONST(0.5));
+        mix = mp_obj_new_float(MICROPY_FLOAT_CONST(0.25));
     }
     synthio_block_assign_slot(mix, &self->mix, MP_QSTR_mix);
 
@@ -82,7 +82,7 @@ void common_hal_audiodelays_echo_construct(audiodelays_echo_obj_t *self, uint32_
     // Allocate the echo buffer for the max possible delay, echo is always 16-bit
     self->max_delay_ms = max_delay_ms;
     self->max_echo_buffer_len = (uint32_t)(self->base.sample_rate / MICROPY_FLOAT_CONST(1000.0) * max_delay_ms) * (self->base.channel_count * sizeof(uint16_t)); // bytes
-    self->echo_buffer = m_malloc(self->max_echo_buffer_len);
+    self->echo_buffer = m_malloc_without_collect(self->max_echo_buffer_len);
     if (self->echo_buffer == NULL) {
         common_hal_audiodelays_echo_deinit(self);
         m_malloc_fail(self->max_echo_buffer_len);
@@ -275,7 +275,7 @@ audioio_get_buffer_result_t audiodelays_echo_get_buffer(audiodelays_echo_obj_t *
 
         // get the effect values we need from the BlockInput. These may change at run time so you need to do bounds checking if required
         shared_bindings_synthio_lfo_tick(self->base.sample_rate, n / self->base.channel_count);
-        mp_float_t mix = synthio_block_slot_get_limited(&self->mix, MICROPY_FLOAT_CONST(0.0), MICROPY_FLOAT_CONST(1.0));
+        mp_float_t mix = synthio_block_slot_get_limited(&self->mix, MICROPY_FLOAT_CONST(0.0), MICROPY_FLOAT_CONST(1.0)) * MICROPY_FLOAT_CONST(2.0);
         mp_float_t decay = synthio_block_slot_get_limited(&self->decay, MICROPY_FLOAT_CONST(0.0), MICROPY_FLOAT_CONST(1.0));
 
         mp_float_t f_delay_ms = synthio_block_slot_get(&self->delay_ms);
@@ -326,7 +326,7 @@ audioio_get_buffer_result_t audiodelays_echo_get_buffer(audiodelays_echo_obj_t *
                         echo_buffer[echo_buffer_pos++ + echo_buffer_offset] = word;
                     }
 
-                    word = (int16_t)(echo * mix);
+                    word = (int16_t)(echo * MIN(mix, MICROPY_FLOAT_CONST(1.0)));
 
                     if (MP_LIKELY(self->base.bits_per_sample == 16)) {
                         word_buffer[i] = word;
@@ -424,16 +424,17 @@ audioio_get_buffer_result_t audiodelays_echo_get_buffer(audiodelays_echo_obj_t *
                         }
                     }
 
-                    word = echo + sample_word;
+                    word = (int32_t)((sample_word * MIN(MICROPY_FLOAT_CONST(2.0) - mix, MICROPY_FLOAT_CONST(1.0)))
+                        + (echo * MIN(mix, MICROPY_FLOAT_CONST(1.0))));
                     word = synthio_mix_down_sample(word, SYNTHIO_MIX_DOWN_SCALE(2));
 
                     if (MP_LIKELY(self->base.bits_per_sample == 16)) {
-                        word_buffer[i] = (int16_t)((sample_word * (MICROPY_FLOAT_CONST(1.0) - mix)) + (word * mix));
+                        word_buffer[i] = (int16_t)word;
                         if (!self->base.samples_signed) {
                             word_buffer[i] ^= 0x8000;
                         }
                     } else {
-                        int8_t mixed = (int16_t)((sample_word * (MICROPY_FLOAT_CONST(1.0) - mix)) + (word * mix));
+                        int8_t mixed = (int16_t)word;
                         if (self->base.samples_signed) {
                             hword_buffer[i] = mixed;
                         } else {

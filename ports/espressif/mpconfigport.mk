@@ -30,18 +30,16 @@ LONGINT_IMPL = MPZ
 # Default to no-psram
 CIRCUITPY_ESP_PSRAM_SIZE ?= 0
 
-# New 4MB boards will not have OTA support but more room for alarm, ble and other
-# newer features.
-CIRCUITPY_LEGACY_4MB_FLASH_LAYOUT ?= 0
+# Some 4MB non-USB boards were initially defined with 2MB firmware, almost 2MB user_fs partitions.
+# Others were defined with 1.4M+1.4M (now a single 2.8MB) firmware partitions / 1.2MB user_fs.
+# Keep the former as is, so that the user filesystem will be unchanged.
+CIRCUITPY_4MB_FLASH_LARGE_USER_FS_LAYOUT ?= 0
 
 # Enable more features
 CIRCUITPY_FULL_BUILD ?= 1
 
 # If SSL is enabled, it's mbedtls
 CIRCUITPY_SSL_MBEDTLS = 1
-
-# Wifi Power Save
-CIRCUITPY_WIFI_RADIO_SETTABLE_LISTEN_INTERVAL = 1
 
 # Never use our copy of MBEDTLS
 CIRCUITPY_HASHLIB_MBEDTLS_ONLY = 0
@@ -67,6 +65,7 @@ CIRCUITPY_HASHLIB ?= 1
 CIRCUITPY_I2CTARGET ?= 0
 CIRCUITPY_MAX3421E ?= 1
 CIRCUITPY_MEMORYMAP ?= 1
+CIRCUITPY_RCLCPY ?= 0
 CIRCUITPY_NVM ?= 1
 CIRCUITPY_PARALLELDISPLAYBUS ?= 1
 CIRCUITPY_PS2IO ?= 1
@@ -184,6 +183,9 @@ CIRCUITPY_TOUCHIO_USE_NATIVE = 0
 CIRCUITPY_USB_DEVICE = 0
 CIRCUITPY_ESP_USB_SERIAL_JTAG ?= 1
 
+# Remove temporarily until 10265 is merged
+CIRCUITPY_ULAB = 0
+
 else ifeq ($(IDF_TARGET),esp32h2)
 # Modules
 CIRCUITPY_ESPCAMERA = 0
@@ -211,7 +213,7 @@ else ifeq ($(IDF_TARGET),esp32p4)
 
 # No wifi
 # TODO: Support ESP32-C6 coprocessor on some boards.
-CIRCUITPY_BLEIO = 0
+CIRCUITPY_BLEIO_NATIVE = 0
 CIRCUITPY_WIFI = 0
 CIRCUITPY_SSL = 0
 
@@ -248,7 +250,7 @@ else ifeq ($(IDF_TARGET),esp32s2)
 CIRCUITPY_ALARM_TOUCH = 1
 CIRCUITPY_AUDIOIO = 1
 # No BLE in hw
-CIRCUITPY_BLEIO = 0
+CIRCUITPY_BLEIO_NATIVE = 0
 
 # No SDMMC
 CIRCUITPY_SDIOIO = 0
@@ -263,7 +265,7 @@ CIRCUITPY_ESP_USB_SERIAL_JTAG ?= 0
 
 # No room for _bleio on boards with 4MB flash
 ifeq ($(CIRCUITPY_ESP_FLASH_SIZE),4MB)
-CIRCUITPY_BLEIO ?= 0
+CIRCUITPY_BLEIO_NATIVE ?= 0
 endif
 
 endif
@@ -287,7 +289,7 @@ else
 CIRCUITPY_ALARM = 0
 endif
 CIRCUITPY_DUALBANK = 1
-CIRCUITPY_BLEIO ?= 0
+CIRCUITPY_BLEIO_NATIVE ?= 0
 CIRCUITPY_SETTABLE_PROCESSOR_FREQUENCY = 0
 else
 CIRCUITPY_SETTABLE_PROCESSOR_FREQUENCY = 1
@@ -298,7 +300,7 @@ ifeq ($(CIRCUITPY_ESP_FLASH_SIZE),2MB)
 CIRCUITPY_BITMAPFILTER ?= 0
 CIRCUITPY_DUALBANK = 0
 CIRCUITPY_AUDIOMP3 = 0
-CIRCUITPY_BLEIO ?= 0
+CIRCUITPY_BLEIO_NATIVE ?= 0
 endif
 
 # No room for _eve on boards with 4MB flash
@@ -307,7 +309,7 @@ CIRCUITPY__EVE = 0
 endif
 
 # default BLEIO after flash-size based defaults
-CIRCUITPY_BLEIO ?= 1
+CIRCUITPY_BLEIO_NATIVE ?= 1
 
 # Modules dependent on other modules
 CIRCUITPY_ESPNOW ?= $(CIRCUITPY_WIFI)
@@ -315,8 +317,8 @@ CIRCUITPY_GIFIO ?= $(CIRCUITPY_DISPLAYIO)
 CIRCUITPY_JPEGIO ?= $(CIRCUITPY_DISPLAYIO)
 CIRCUITPY_QRIO ?= $(CIRCUITPY_ESPCAMERA)
 
-CIRCUITPY_BLE_FILE_SERVICE ?= $(CIRCUITPY_BLEIO)
-CIRCUITPY_SERIAL_BLE ?= $(CIRCUITPY_BLEIO)
+CIRCUITPY_BLE_FILE_SERVICE ?= $(CIRCUITPY_BLEIO_NATIVE)
+CIRCUITPY_SERIAL_BLE ?= $(CIRCUITPY_BLEIO_NATIVE)
 
 # Features dependent on other features
 ifneq ($(CIRCUITPY_USB_DEVICE),0)

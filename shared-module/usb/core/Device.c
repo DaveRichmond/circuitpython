@@ -49,10 +49,22 @@ bool common_hal_usb_core_device_construct(usb_core_device_obj_t *self, uint8_t d
     return true;
 }
 
+bool common_hal_usb_core_device_deinited(usb_core_device_obj_t *self) {
+    return self->device_address == 0;
+}
+
 void common_hal_usb_core_device_deinit(usb_core_device_obj_t *self) {
-    // TODO: Close all of the endpoints we've opened. Some drivers store state
-    // for each open endpoint. If we don't close them, then we'll leak memory.
-    // Waiting for TinyUSB to add this.
+    if (common_hal_usb_core_device_deinited(self)) {
+        return;
+    }
+    size_t open_size = sizeof(self->open_endpoints);
+    for (size_t i = 0; i < open_size; i++) {
+        if (self->open_endpoints[i] != 0) {
+            tuh_edpt_close(self->device_address, self->open_endpoints[i]);
+            self->open_endpoints[i] = 0;
+        }
+    }
+    self->device_address = 0;
 }
 
 uint16_t common_hal_usb_core_device_get_idVendor(usb_core_device_obj_t *self) {
@@ -142,33 +154,42 @@ mp_obj_t common_hal_usb_core_device_get_manufacturer(usb_core_device_obj_t *self
 
 
 mp_int_t common_hal_usb_core_device_get_bus(usb_core_device_obj_t *self) {
-    hcd_devtree_info_t devtree;
-    hcd_devtree_get_info(self->device_address, &devtree);
-    return devtree.rhport;
+    tuh_bus_info_t bus_info;
+    if (!tuh_bus_info_get(self->device_address, &bus_info)) {
+        return 0;
+    }
+    return bus_info.rhport;
 }
 
 mp_obj_t common_hal_usb_core_device_get_port_numbers(usb_core_device_obj_t *self) {
-    hcd_devtree_info_t devtree;
-    hcd_devtree_get_info(self->device_address, &devtree);
-    if (devtree.hub_addr == 0) {
+    tuh_bus_info_t bus_info;
+    if (!tuh_bus_info_get(self->device_address, &bus_info)) {
+        return mp_const_none;
+    }
+    if (bus_info.hub_addr == 0) {
         return mp_const_none;
     }
     // USB allows for 5 hubs deep chaining. So we're at most 5 ports deep.
     mp_obj_t ports[5];
     size_t port_count = 0;
-    while (devtree.hub_addr != 0 && port_count < MP_ARRAY_SIZE(ports)) {
+    tuh_bus_info_t current_bus_info = bus_info;
+    while (current_bus_info.hub_addr != 0 && port_count < MP_ARRAY_SIZE(ports)) {
         // Reverse the order of the ports so most downstream comes last.
-        ports[MP_ARRAY_SIZE(ports) - 1 - port_count] = MP_OBJ_NEW_SMALL_INT(devtree.hub_port);
+        ports[MP_ARRAY_SIZE(ports) - 1 - port_count] = MP_OBJ_NEW_SMALL_INT(current_bus_info.hub_port);
         port_count++;
-        hcd_devtree_get_info(devtree.hub_addr, &devtree);
+        if (!tuh_bus_info_get(current_bus_info.hub_addr, &current_bus_info)) {
+            break;
+        }
     }
     return mp_obj_new_tuple(port_count, ports + (MP_ARRAY_SIZE(ports) - port_count));
 }
 
 mp_int_t common_hal_usb_core_device_get_speed(usb_core_device_obj_t *self) {
-    hcd_devtree_info_t devtree;
-    hcd_devtree_get_info(self->device_address, &devtree);
-    switch (devtree.speed) {
+    tuh_bus_info_t bus_info;
+    if (!tuh_bus_info_get(self->device_address, &bus_info)) {
+        return 0;
+    }
+    switch (bus_info.speed) {
         case TUSB_SPEED_HIGH:
             return PYUSB_SPEED_HIGH;
         case TUSB_SPEED_FULL:
